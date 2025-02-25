@@ -2,12 +2,11 @@ const { Client, GatewayIntentBits, StringSelectMenuBuilder, StringSelectMenuOpti
 const { 
   joinVoiceChannel, 
   getVoiceConnection, 
-  NoSubscriberBehavior, 
-  AudioPlayerStatus 
 } = require('@discordjs/voice');
 const { DisTube } = require('distube');
 const ytSearch = require('yt-search');
 require('dotenv').config();
+const ytdl = require('@distube/ytdl-core');
 
 const client = new Client({
   intents: [
