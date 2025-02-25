@@ -201,7 +201,12 @@ async function playVideo(guildId, message) {
   if (connection) {
 
   const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
-  const stream = ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio', highWaterMark: 1 << 25 });
+  const stream = ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio', highWaterMark: 1 << 25, requestOptions: {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'Cookie': process.env.COOKIES,
+    },
+  }, });
   const resource = createAudioResource(stream);
 
   player.play(resource);
