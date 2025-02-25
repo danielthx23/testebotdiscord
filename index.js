@@ -1,14 +1,6 @@
 const { Client, GatewayIntentBits, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ActionRowBuilder } = require('discord.js');
-const { 
-  joinVoiceChannel, 
-  createAudioPlayer, 
-  createAudioResource, 
-  getVoiceConnection, 
-  NoSubscriberBehavior, 
-  AudioPlayerStatus 
-} = require('@discordjs/voice');
+const { DisTube } = require('distube');
 const ytdl = require('@distube/ytdl-core');
-const ytSearch = require('yt-search');
 require('dotenv').config();
 
 const client = new Client({
@@ -22,23 +14,16 @@ const client = new Client({
   partials: ['CHANNEL'],
 });
 
-let queue = new Map();
-
-client.once("ready", async () => {
-  const channelId = "373861944718917644"; 
-
-  try {
-    const channel = await client.channels.fetch(channelId);
-    if (channel) {
-      channel.send("to on");
-    } else {
-      console.log("achei esse canal nn");
-    }
-  } catch (error) {
-    console.error("deu ruim", error);
-  }
+const distube = new DisTube(client, {
+  leaveOnStop: true,
+  leaveOnFinish: true,
+  leaveOnEmpty: true,
+  nsfw: true,
 });
 
+client.once("ready", async () => {
+  console.log(`${client.user.tag} is ready!`);
+});
 
 client.on('messageCreate', async (message) => {
   if (!message.guild || message.author.bot) return;
@@ -47,15 +32,16 @@ client.on('messageCreate', async (message) => {
 
   if (content.startsWith('teto toca')) {
     if (!message.member.voice.channel) {
-      return message.reply("Mf isn't even in a channel :skull:");
+      return message.reply("Você precisa estar em um canal de voz!");
     }
 
     const args = content.split(' ').slice(2);
     if (args.length === 0) {
-      return message.reply("url todo cagado, manda um que funciona");
+      return message.reply("URL inválida, envie uma que funcione.");
     }
 
     const query = args.join(' ');
+
     if (ytdl.validateURL(query)) {
       return playFromURL(query, message);
     } else {
@@ -78,200 +64,105 @@ client.on('messageCreate', async (message) => {
   }
 });
 
-async function joinVoice(message) {
-  if (!message.member.voice.channel) {
-    return message.reply("entra num canal de voz");
-  }
-
-  const connection = joinVoiceChannel({
-    channelId: message.member.voice.channel.id,
-    guildId: message.guild.id,
-    adapterCreator: message.guild.voiceAdapterCreator,
-  });
-
-  message.reply("sup");
-}
-
-function leaveVoice(message) {
-  const connection = getVoiceConnection(message.guild.id);
-  if (!connection) {
-    return message.reply("nem to num canal de voz");
-  }
-
-  connection.destroy();
-  message.reply("flw");
-}
-
 async function playFromURL(url, message) {
   try {
-    const info = await ytdl.getInfo(url);
-    if (!info || info.videoDetails.isLive) {
-      return message.reply("url todo cagado, manda um que funciona");
-    }
-    joinVoiceChannel({
-      channelId: message.member.voice.channel.id,
-        guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator,
+    distube.play(message.member.voice.channel, url, {
+      member: message.member,
+      textChannel: message.channel,
     });
-    addToQueue(message.guild.id, { title: info.videoDetails.title, url }, message);
+    message.reply(`Agora tocando: ${url}`);
   } catch (error) {
-    console.error('Erro ao buscar áudio:', error);
-    return message.reply("não deu pra processar esse video não man :broken_heart:");
+    console.error('Erro ao tocar áudio:', error);
+    message.reply("Não consegui processar esse vídeo.");
   }
 }
 
 async function searchAndCreateSelectMenu(query, message) {
   try {
-    const results = await ytSearch(query);
-    if (results.videos.length === 0) return message.reply('achei isso no youtube não');
+    const results = await distube.search(query);
+    if (results.length === 0) return message.reply('Não encontrei resultados no YouTube.');
 
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId('video_select')
-      .setPlaceholder('escolhe um vídeo aí')
+      .setPlaceholder('Escolha um vídeo')
       .addOptions(
-        results.videos.slice(0, 5).map(video => (
+        results.slice(0, 5).map((video, index) => (
           new StringSelectMenuOptionBuilder()
-            .setLabel(video.title)
-            .setDescription(video.author.name)
+            .setLabel(video.name)
+            .setDescription(video.channel.name)
             .setValue(video.url)
         ))
       );
 
     const row = new ActionRowBuilder().addComponents(selectMenu);
-    const reply = await message.reply({ content: 'escolhe um ae:', components: [row] });
+    const reply = await message.reply({ content: 'Escolha um vídeo:', components: [row] });
 
     const filter = (interaction) => interaction.user.id === message.author.id;
     const collector = reply.createMessageComponentCollector({ filter, time: 60000 });
 
     collector.on('collect', async (interaction) => {
-      const selectedVideo = results.videos.find(video => video.url === interaction.values[0]);
-      await interaction.update({ content: `tu selecionou: \`${selectedVideo.title}\``, components: [] });
-      joinVoiceChannel({
-        channelId: message.member.voice.channel.id,
-        guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator,
+      const selectedVideo = results.find(video => video.url === interaction.values[0]);
+      await interaction.update({ content: `Você escolheu: \`${selectedVideo.name}\``, components: [] });
+      distube.play(message.member.voice.channel, selectedVideo.url, {
+        member: message.member,
+        textChannel: message.channel,
       });
-      addToQueue(message.guild.id, { title: selectedVideo.title, url: selectedVideo.url }, message);
     });
 
     collector.on('end', (_, reason) => {
-      if (reason === 'time') reply.edit({ content: 'demorou demais', components: [] });
+      if (reason === 'time') reply.edit({ content: 'Tempo esgotado!', components: [] });
     });
   } catch (error) {
     console.error('Erro ao buscar vídeo:', error);
-    message.reply('deu ruim');
+    message.reply('Erro ao buscar o vídeo.');
   }
 }
 
-function addToQueue(guildId, song, message) {
-  const serverQueue = queue.get(guildId);
-  if (!serverQueue) {
-    queue.set(guildId, { songs: [song], isSongBeingSkipped: false });
-    playVideo(guildId, message);
-  } else {
-    serverQueue.songs.push(song);
-    message.channel.send(`adicionado à fila: \`${song.title}\``);
+function joinVoice(message) {
+  if (!message.member.voice.channel) {
+    return message.reply("Você precisa entrar em um canal de voz.");
   }
+
+  distube.voices.join(message.member.voice.channel);
+  message.reply("Entrei no canal de voz!");
+}
+
+function leaveVoice(message) {
+  distube.voices.leave(message.guild.id);
+  message.reply("Saí do canal de voz.");
 }
 
 function skipTrack(message) {
-  const serverQueue = queue.get(message.guild.id);
-  if (!serverQueue || serverQueue.songs.length < 2) {
-    return message.reply("não tem outra música para pular.");
-  }
-
-  serverQueue.isSongBeingSkipped = true;
-  
-  message.reply(`pulando: \`${serverQueue.songs[0].title}\``);
-  serverQueue.songs.shift();
-  playVideo(message.guild.id, message);
-}
-
-async function playVideo(guildId, message) {
-  const serverQueue = queue.get(guildId);
-  if (!serverQueue || serverQueue.songs.length === 0) {
-    queue.delete(guildId);
-    return message.channel.send("acabou os vídeos.");
-  }
-
-  const song = serverQueue.songs[0];
-
-  let connection = getVoiceConnection(guildId);
-
-  if (connection) {
-
-  const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
-  const stream = ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio', highWaterMark: 1 << 25, requestOptions: {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      'Cookie': process.env.COOKIES,
-    },
-  }, });
-  const resource = createAudioResource(stream);
-
-  player.play(resource);
-  connection.subscribe(player);
-
-  message.channel.send(`She sounds exactly like \`${song.title}\`, it's scary  :sweat: :sweat_smile: :cold_sweat: - pedido do ${message.member.displayName}`);
-
-  player.on('error', (error) => {
-    console.error('Erro ao tocar áudio:', error);
-    message.channel.send('deu ruim');
-  });
-
-  player.on(AudioPlayerStatus.Idle, () => {
-    const serverQueue = queue.get(guildId);
-    if (!serverQueue) return;
-
-    if (serverQueue.isSongBeingSkipped) {
-      serverQueue.isSongBeingSkipped = false;  
-      return; 
-    }
-
-    if (serverQueue.songs.length > 0) {
-      serverQueue.songs.shift();
-      playVideo(guildId, message);
-    } else {
-      queue.delete(guildId);
-      connection.destroy();
-      message.channel.send("acabou os vídeos.");
-    }
-  });
-}
+  distube.skip(message);
+  message.reply("Pulei a música!");
 }
 
 function pauseTrack(message) {
-  const connection = getVoiceConnection(message.guild.id);
-  if (!connection) return message.reply("nn to tocando nada.");
-  
-  connection.state.subscription.player.pause();
-  message.reply("video pausado");
+  distube.pause(message);
+  message.reply("Música pausada.");
 }
 
 function resumeTrack(message) {
-  const connection = getVoiceConnection(message.guild.id);
-  if (!connection) return message.reply("nn to tocando nada.");
-
-  connection.state.subscription.player.unpause();
-  message.reply("video retomado");
+  distube.resume(message);
+  message.reply("Música retomada.");
 }
 
 function nowPlaying(message) {
-  const serverQueue = queue.get(message.guild.id);
-  if (!serverQueue || !serverQueue.songs.length) return message.reply("não tem música tocando.");
+  const queue = distube.getQueue(message.guild.id);
+  if (!queue || !queue.songs.length) return message.reply("Não tem nada tocando no momento.");
 
-  message.reply(`to tocando \`${serverQueue.songs[0].title}\``);
+  message.reply(`Tocando agora: \`${queue.songs[0].name}\``);
 }
 
 function listarQueue(message) {
-  const serverQueue = queue.get(message.guild.id);
-  if (!serverQueue || !serverQueue.songs.length) return message.reply("não tem música tocando.");
+  const queue = distube.getQueue(message.guild.id);
+  if (!queue || !queue.songs.length) return message.reply("A fila está vazia.");
 
-  const listaDeVideos = serverQueue.songs
-    .map((song, index) => `${index + 1}. ${song.title}`)
+  const listaDeVideos = queue.songs
+    .map((song, index) => `${index + 1}. ${song.name}`)
     .join("\n");
-   
-    message.reply(`**fila ai:**\n${listaDeVideos}`);
+
+  message.reply(`**Fila de músicas:**\n${listaDeVideos}`);
 }
 
 client.login(process.env.DISCORD_TOKEN);
