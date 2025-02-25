@@ -15,15 +15,24 @@ const client = new Client({
 });
 
 const distube = new DisTube(client, {
-  leaveOnStop: true,
-  leaveOnFinish: true,
-  leaveOnEmpty: true,
   nsfw: true,
 });
 
 client.once("ready", async () => {
-  console.log(`${client.user.tag} is ready!`);
+  const channelId = "373861944718917644"; 
+
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (channel) {
+      channel.send("to on");
+    } else {
+      console.log("achei esse canal nn");
+    }
+  } catch (error) {
+    console.error("deu ruim", error);
+  }
 });
+
 
 client.on('messageCreate', async (message) => {
   if (!message.guild || message.author.bot) return;
