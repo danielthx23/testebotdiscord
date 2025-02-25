@@ -24,9 +24,7 @@ let queue = new Map();
 
 // Initialize distube
 const distube = new DisTube(client, {
-  searchSongs: true,  // Enables search feature
-  emitNewSongOnly: true, // Emits only new songs in the queue
-  leaveOnFinish: true,  // Automatically leaves the channel when the queue finishes
+   nsfw: true,
 });
 
 client.once("ready", async () => {
