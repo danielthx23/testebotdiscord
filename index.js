@@ -212,7 +212,6 @@ async function playVideo(guildId, message) {
   const agentOptions = {
     pipelining: 5,
     maxRedirections: 0,
-    localAddress: "127.0.0.1",
   };
 
   const agent = ytdl.createAgent(cookies, agentOptions);
