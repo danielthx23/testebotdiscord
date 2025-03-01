@@ -201,16 +201,26 @@ async function playVideo(guildId, message) {
   if (connection) {
 
   const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
-  require('dotenv').config();
 
   const youtubeCookies = process.env.YOUTUBE_COOKIES;
+
+  const cookies = youtubeCookies.split(',').map(cookie => {
+    const [name, value] = cookie.trim().split('=');
+    return { name, value };
+  });
+
+  const agentOptions = {
+    pipelining: 5,
+    maxRedirections: 0,
+    localAddress: "127.0.0.1",
+  };
+
+  const agent = ytdl.createAgent(cookies, agentOptions);
 
   const stream = ytdl(song.url, {
     filter: 'audioonly',
     quality: 'highestaudio',
-    requestOptions: {
-      headers: { cookie: youtubeCookies },
-    },
+    agent: agent
   });
 
   const resource = createAudioResource(stream);
