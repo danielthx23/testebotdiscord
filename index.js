@@ -43,7 +43,7 @@ client.once("ready", async () => {
 client.on('messageCreate', async (message) => {
   if (!message.guild || message.author.bot) return;
 
-  if (message.mentions(client.user)) {
+  if (message.mentions.has(client.user)) {
     return message.channel.send("Meu prefixo é `;`, se precisar de ajuda digite `;help`");
   }
 
