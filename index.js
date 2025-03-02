@@ -47,8 +47,8 @@ client.on('messageCreate', async (message) => {
     return message.channel.send("Meu prefixo é `;`, se precisar de ajuda digite `;help`");
   }
 
-  const userMessage = message.content.trim();
-  const args = userMessage.split(/\s+/);
+  const userMessage = message.content;
+  const args = userMessage.split();
   const command = args.shift().toLowerCase();
 
   if (userMessage.startsWith(';play')) {
@@ -56,7 +56,7 @@ client.on('messageCreate', async (message) => {
       return message.reply("Mf isn't even in a channel :skull:");
     }
 
-    const args = content.split(' ').slice(1);
+    const args = userMessage.split(' ').slice(1);
     if (args.length === 0) {
       return message.reply("url todo cagado, manda um que funciona");
     }
