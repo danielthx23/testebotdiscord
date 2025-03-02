@@ -47,7 +47,11 @@ client.on('messageCreate', async (message) => {
     return message.channel.send("Meu prefixo é `;`, se precisar de ajuda digite `;help`");
   }
 
-  if (content.startsWith(';play')) {
+  const userMessage = message.content.trim();
+  const args = userMessage.split(/\s+/);
+  const command = args.shift().toLowerCase();
+
+  if (userMessage.startsWith(';play')) {
     if (!message.member.voice.channel) {
       return message.reply("Mf isn't even in a channel :skull:");
     }
@@ -73,11 +77,11 @@ client.on('messageCreate', async (message) => {
     ";resume": resumeTrack,
     ";np": nowPlaying,
     ";queue": listarQueue,
-    ";help": commandList
+    ";help": commandList,
   };
 
-  if (commands[content]) {
-    return commands[content](message);
+  if (commands[command]) {
+    return commands[command](message, args);
   }
 });
 
