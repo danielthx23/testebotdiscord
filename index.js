@@ -43,19 +43,21 @@ client.once("ready", async () => {
 client.on('messageCreate', async (message) => {
   if (!message.guild || message.author.bot) return;
 
-  const content = message.content.trim();
+  if (message.mentions(client.user)) {
+    return message.channel.send("Meu prefixo é `;`, se precisar de ajuda digite `;help`");
+  }
 
-  if (content.startsWith('teto toca')) {
+  if (content.startsWith(';play')) {
     if (!message.member.voice.channel) {
       return message.reply("Mf isn't even in a channel :skull:");
     }
 
-    const args = content.split(' ').slice(2);
+    const args = content.split(' ').slice(1);
     if (args.length === 0) {
       return message.reply("url todo cagado, manda um que funciona");
     }
 
-    const query = args.join(' ');
+    const query = args.join(' ').split(',');
     if (ytdl.validateURL(query)) {
       return playFromURL(query, message);
     } else {
@@ -64,13 +66,14 @@ client.on('messageCreate', async (message) => {
   }
 
   const commands = {
-    "teto entra": joinVoice,
-    "teto sai": leaveVoice,
-    "teto pular": skipTrack,
-    "teto pausar": pauseTrack,
-    "teto retomar": resumeTrack,
-    "teto agora": nowPlaying,
-    "teto queue": listarQueue
+    ";join": joinVoice,
+    ";leave": leaveVoice,
+    ";skip": skipTrack,
+    ";pause": pauseTrack,
+    ";resume": resumeTrack,
+    ";np": nowPlaying,
+    ";queue": listarQueue,
+    ";help": commandList
   };
 
   if (commands[content]) {
@@ -125,6 +128,7 @@ async function searchAndCreateSelectMenu(query, message) {
     const results = await ytSearch(query);
     if (results.videos.length === 0) return message.reply('achei isso no youtube não');
 
+    if (query.length === 1) {
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId('video_select')
       .setPlaceholder('escolhe um vídeo aí')
@@ -137,7 +141,7 @@ async function searchAndCreateSelectMenu(query, message) {
         ))
       );
 
-    const row = new ActionRowBuilder().addComponents(selectMenu);
+      const row = new ActionRowBuilder().addComponents(selectMenu);
     const reply = await message.reply({ content: 'escolhe um ae:', components: [row] });
 
     const filter = (interaction) => interaction.user.id === message.author.id;
@@ -157,6 +161,16 @@ async function searchAndCreateSelectMenu(query, message) {
     collector.on('end', (_, reason) => {
       if (reason === 'time') reply.edit({ content: 'demorou demais', components: [] });
     });
+    } else {
+      joinVoiceChannel({
+        channelId: message.member.voice.channel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator,
+      });
+      for (video in queue) {
+        addToQueue(message.guild.id, { title: video.title, url: video.url }, message);
+      }
+    }
   } catch (error) {
     console.error('Erro ao buscar vídeo:', error);
     message.reply('deu ruim');
@@ -287,6 +301,21 @@ function listarQueue(message) {
     .join("\n");
    
     message.reply(`**fila ai:**\n${listaDeVideos}`);
+}
+
+function commandList(message) {
+  message.reply(
+    `**lista de comandos:**\n` +
+      `;play - tocar um video, da pra adicionar varios se separar por virgula (coloca o nome do autor pra n errar)\n` +
+      `;join - entrar no canal de voz\n` +
+      `;leave - sair do canal de voz\n` +
+      `;skip - pular o video atual\n` +
+      `;pause - pausar o video\n` +
+      `;resume - retomar o video\n` +
+      `;np - mostrar o video atual\n` +
+      `;queue - listar a fila de videos\n` +
+      `;help - mostrar esta lista de comandos`
+  );
 }
 
 client.login(process.env.DISCORD_TOKEN);
