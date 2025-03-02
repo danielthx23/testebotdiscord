@@ -174,7 +174,7 @@ async function searchAndCreateSelectMenu(query, message) {
       });
       query.forEach(async title => {
         const results = await ytSearch(title);
-        addToQueue(message.guild.id, { title: results.title, url: results.url }, message);
+        addToQueue(message.guild.id, { title: results.videos[0].title, url: results.videos[0].url }, message);
       })
     }
   } catch (error) {
