@@ -129,10 +129,11 @@ async function playFromURL(url, message) {
 
 async function searchAndCreateSelectMenu(query, message) {
   try {
-    const results = await ytSearch(query);
+    if (query.length === 1) {
+
+    const results = await ytSearch(query[0]);
     if (results.videos.length === 0) return message.reply('achei isso no youtube não');
 
-    if (query.length === 1) {
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId('video_select')
       .setPlaceholder('escolhe um vídeo aí')
@@ -171,9 +172,10 @@ async function searchAndCreateSelectMenu(query, message) {
         guildId: message.guild.id,
         adapterCreator: message.guild.voiceAdapterCreator,
       });
-      for (video in queue) {
-        addToQueue(message.guild.id, { title: video.title, url: video.url }, message);
-      }
+      query.forEach(async title => {
+        const results = await ytSearch(title);
+        addToQueue(message.guild.id, { title: results.title, url: results.url }, message);
+      })
     }
   } catch (error) {
     console.error('Erro ao buscar vídeo:', error);
