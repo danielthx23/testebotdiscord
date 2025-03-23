@@ -39,7 +39,6 @@ client.once("ready", async () => {
   }
 });
 
-
 client.on('messageCreate', async (message) => {
   if (!message.guild || message.author.bot) return;
 
@@ -239,7 +238,6 @@ async function playVideo(guildId, message) {
   const stream = ytdl(song.url, {
     filter: 'audioonly',
     quality: 'highestaudio',
-    format: 'opus',
     agent: agent
   });
 
