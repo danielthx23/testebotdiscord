@@ -11,6 +11,23 @@ const ytdl = require('@distube/ytdl-core');
 const ytSearch = require('yt-search');
 require('dotenv').config();
 
+// Parse cookies from the environment variable (expected to be a JSON array)
+let cookies;
+try {
+  cookies = JSON.parse(process.env.YOUTUBE_COOKIES);
+} catch (err) {
+  console.error("Failed to parse YOUTUBE_COOKIES. Make sure it's valid JSON.");
+  process.exit(1);
+}
+
+ const agentOptions = {
+    pipelining: 5,
+    maxRedirections: 0,
+  };
+
+// Create the agent using the new cookie format
+const agent = ytdl.createAgent(cookies, agentOptions);
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -220,20 +237,6 @@ async function playVideo(guildId, message) {
   if (connection) {
 
   const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
-
-  const youtubeCookies = process.env.YOUTUBE_COOKIES;
-
-  const cookies = youtubeCookies.split(',').map(cookie => {
-    const [name, value] = cookie.trim().split('=');
-    return { name, value };
-  });
-
-  const agentOptions = {
-    pipelining: 5,
-    maxRedirections: 0,
-  };
-
-  const agent = ytdl.createAgent(cookies, agentOptions);
 
   const stream = ytdl(song.url, {
     filter: 'audioonly',
