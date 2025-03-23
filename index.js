@@ -11,16 +11,6 @@ const ytdl = require('@distube/ytdl-core');
 const ytSearch = require('yt-search');
 require('dotenv').config();
 
-// Parse cookies from the environment variable
-const cookiesString = process.env.YOUTUBE_COOKIES;
-const cookies = cookiesString.split(',').map(cookie => {
-  const [name, value] = cookie.trim().split('=');
-  return { name, value };
-});
-
-// Create the agent using the cookies
-const agent = ytdl.createAgent(cookies);
-
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -120,7 +110,14 @@ function leaveVoice(message) {
 
 async function playFromURL(url, message) {
   try {
-    const info = await ytdl.getInfo(url, { agent });
+    // Pass the cookies in the requestOptions header
+    const info = await ytdl.getInfo(url, {
+      requestOptions: {
+        headers: {
+          Cookie: process.env.YOUTUBE_COOKIES
+        }
+      }
+    });
     if (!info || info.videoDetails.isLive) {
       return message.reply("url todo cagado, manda um que funciona");
     }
@@ -140,41 +137,41 @@ async function searchAndCreateSelectMenu(query, message) {
   try {
     if (query.length === 1) {
 
-    const results = await ytSearch(query[0]);
-    if (results.videos.length === 0) return message.reply('achei isso no youtube não');
+      const results = await ytSearch(query[0]);
+      if (results.videos.length === 0) return message.reply('achei isso no youtube não');
 
-    const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId('video_select')
-      .setPlaceholder('escolhe um vídeo aí')
-      .addOptions(
-        results.videos.slice(0, 5).map(video => (
-          new StringSelectMenuOptionBuilder()
-            .setLabel(video.title)
-            .setDescription(video.author.name)
-            .setValue(video.url)
-        ))
-      );
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('video_select')
+        .setPlaceholder('escolhe um vídeo aí')
+        .addOptions(
+          results.videos.slice(0, 5).map(video => (
+            new StringSelectMenuOptionBuilder()
+              .setLabel(video.title)
+              .setDescription(video.author.name)
+              .setValue(video.url)
+          ))
+        );
 
       const row = new ActionRowBuilder().addComponents(selectMenu);
-    const reply = await message.reply({ content: 'escolhe um ae:', components: [row] });
+      const reply = await message.reply({ content: 'escolhe um ae:', components: [row] });
 
-    const filter = (interaction) => interaction.user.id === message.author.id;
-    const collector = reply.createMessageComponentCollector({ filter, time: 60000 });
+      const filter = (interaction) => interaction.user.id === message.author.id;
+      const collector = reply.createMessageComponentCollector({ filter, time: 60000 });
 
-    collector.on('collect', async (interaction) => {
-      const selectedVideo = results.videos.find(video => video.url === interaction.values[0]);
-      await interaction.update({ content: `tu selecionou: \`${selectedVideo.title}\``, components: [] });
-      joinVoiceChannel({
-        channelId: message.member.voice.channel.id,
-        guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator,
+      collector.on('collect', async (interaction) => {
+        const selectedVideo = results.videos.find(video => video.url === interaction.values[0]);
+        await interaction.update({ content: `tu selecionou: \`${selectedVideo.title}\``, components: [] });
+        joinVoiceChannel({
+          channelId: message.member.voice.channel.id,
+          guildId: message.guild.id,
+          adapterCreator: message.guild.voiceAdapterCreator,
+        });
+        addToQueue(message.guild.id, { title: selectedVideo.title, url: selectedVideo.url }, message);
       });
-      addToQueue(message.guild.id, { title: selectedVideo.title, url: selectedVideo.url }, message);
-    });
 
-    collector.on('end', (_, reason) => {
-      if (reason === 'time') reply.edit({ content: 'demorou demais', components: [] });
-    });
+      collector.on('end', (_, reason) => {
+        if (reason === 'time') reply.edit({ content: 'demorou demais', components: [] });
+      });
     } else {
       joinVoiceChannel({
         channelId: message.member.voice.channel.id,
@@ -184,7 +181,7 @@ async function searchAndCreateSelectMenu(query, message) {
       query.forEach(async title => {
         const results = await ytSearch(title);
         addToQueue(message.guild.id, { title: results.videos[0].title, url: results.videos[0].url }, message);
-      })
+      });
     }
   } catch (error) {
     console.error('Erro ao buscar vídeo:', error);
@@ -203,6 +200,18 @@ function addToQueue(guildId, song, message) {
   }
 }
 
+function skipTrack(message) {
+  const serverQueue = queue.get(message.guild.id);
+  if (!serverQueue || serverQueue.songs.length < 1) {
+    return message.reply("não tem outra música para pular.");
+  }
+
+  serverQueue.isSongBeingSkipped = true;
+  message.reply(`pulando: \`${serverQueue.songs[0].title}\``);
+  serverQueue.songs.shift();
+  playVideo(message.guild.id, message);
+}
+
 async function playVideo(guildId, message) {
   const serverQueue = queue.get(guildId);
   if (!serverQueue || serverQueue.songs.length === 0) {
@@ -216,7 +225,7 @@ async function playVideo(guildId, message) {
   if (connection) {
     const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
 
-    // Pass the cookies from your environment variable via requestOptions
+    // Pass cookies via headers inside requestOptions
     const stream = ytdl(song.url, {
       filter: 'audioonly',
       quality: 'highestaudio',
@@ -231,9 +240,7 @@ async function playVideo(guildId, message) {
     player.play(resource);
     connection.subscribe(player);
 
-    message.channel.send(
-      `She sounds exactly like \`${song.title}\`, it's scary  :sweat: :sweat_smile: :cold_sweat: - pedido do ${message.member.displayName}`
-    );
+    message.channel.send(`She sounds exactly like \`${song.title}\`, it's scary  :sweat: :sweat_smile: :cold_sweat: - pedido do ${message.member.displayName}`);
 
     player.on('error', (error) => {
       console.error('Erro ao tocar áudio:', error);
@@ -261,6 +268,53 @@ async function playVideo(guildId, message) {
   }
 }
 
-// Remaining functions like skipTrack, pauseTrack, etc.
+function pauseTrack(message) {
+  const connection = getVoiceConnection(message.guild.id);
+  if (!connection) return message.reply("nn to tocando nada.");
+
+  connection.state.subscription.player.pause();
+  message.reply("video pausado");
+}
+
+function resumeTrack(message) {
+  const connection = getVoiceConnection(message.guild.id);
+  if (!connection) return message.reply("nn to tocando nada.");
+
+  connection.state.subscription.player.unpause();
+  message.reply("video retomado");
+}
+
+function nowPlaying(message) {
+  const serverQueue = queue.get(message.guild.id);
+  if (!serverQueue || !serverQueue.songs.length) return message.reply("não tem música tocando.");
+
+  message.reply(`to tocando \`${serverQueue.songs[0].title}\``);
+}
+
+function listarQueue(message) {
+  const serverQueue = queue.get(message.guild.id);
+  if (!serverQueue || !serverQueue.songs.length) return message.reply("não tem música tocando.");
+
+  const listaDeVideos = serverQueue.songs
+    .map((song, index) => `${index + 1}. ${song.title}`)
+    .join("\n");
+
+  message.reply(`**fila ai:**\n${listaDeVideos}`);
+}
+
+function commandList(message) {
+  message.reply(
+    `**lista de comandos:**\n` +
+      `;play - tocar um video, da pra adicionar varios se separar por virgula (coloca o nome do autor pra n errar)\n` +
+      `;join - entrar no canal de voz\n` +
+      `;leave - sair do canal de voz\n` +
+      `;skip - pular o video atual\n` +
+      `;pause - pausar o video\n` +
+      `;resume - retomar o video\n` +
+      `;np - mostrar o video atual\n` +
+      `;queue - listar a fila de videos\n` +
+      `;help - mostrar esta lista de comandos`
+  );
+}
 
 client.login(process.env.DISCORD_TOKEN);
