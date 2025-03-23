@@ -12,9 +12,12 @@ const ytSearch = require('yt-search');
 require('dotenv').config();
 
 // Parse cookies from the environment variable (expected to be a JSON array)
-let cookies;
+const cookiesString = process.env.COOKIES;
 try {
-  cookies = JSON.parse(process.env.YOUTUBE_COOKIES);
+  const cookies = cookiesString.split("; ").map(cookie => {
+  const [name, value] = cookie.split("=");
+  return { name, value };
+});
 } catch (err) {
   console.error("Failed to parse YOUTUBE_COOKIES. Make sure it's valid JSON.");
   process.exit(1);
