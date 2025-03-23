@@ -24,12 +24,7 @@ try {
   process.exit(1);
 }
 
-const agentOptions = {
-  pipelining: 5,
-  maxRedirections: 0,
-};
-
-const agent = ytdl.createAgent(cookies, agentOptions);
+const agent = ytdl.createAgent(cookies);
 
 const client = new Client({
   intents: [
