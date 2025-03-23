@@ -223,9 +223,16 @@ async function playVideo(guildId, message) {
   let connection = getVoiceConnection(guildId);
   if (connection) {
     const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
+
+    ytdl.getInfo(song.url, { agent }).then(info => {
+  console.log(info.formats); // Check available formats
+  // You can use info.formats to select a specific format if needed
+});
+
     const stream = ytdl(song.url, {
       filter: 'audioonly',
       quality: 'highestaudio',
+      highWaterMark: 1 << 25,
       requestOptions: {
         headers: {
           Cookie: process.env.YOUTUBE_COOKIES
