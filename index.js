@@ -239,6 +239,7 @@ async function playVideo(guildId, message) {
   const stream = ytdl(song.url, {
     filter: 'audioonly',
     quality: 'highestaudio',
+    format: 'opus',
     agent: agent
   });
 
