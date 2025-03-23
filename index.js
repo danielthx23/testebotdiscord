@@ -211,50 +211,54 @@ async function playVideo(guildId, message) {
   }
 
   const song = serverQueue.songs[0];
-
   let connection = getVoiceConnection(guildId);
 
   if (connection) {
+    const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
 
-  const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
+    // Pass the cookies from your environment variable via requestOptions
+    const stream = ytdl(song.url, {
+      filter: 'audioonly',
+      quality: 'highestaudio',
+      requestOptions: {
+        headers: {
+          Cookie: process.env.YOUTUBE_COOKIES
+        }
+      }
+    });
 
-  const stream = ytdl(song.url, {
-    filter: 'audioonly',
-    quality: 'highestaudio',
-    agent: agent  // Pass the agent with cookies
-  });
+    const resource = createAudioResource(stream);
+    player.play(resource);
+    connection.subscribe(player);
 
-  const resource = createAudioResource(stream);
+    message.channel.send(
+      `She sounds exactly like \`${song.title}\`, it's scary  :sweat: :sweat_smile: :cold_sweat: - pedido do ${message.member.displayName}`
+    );
 
-  player.play(resource);
-  connection.subscribe(player);
+    player.on('error', (error) => {
+      console.error('Erro ao tocar áudio:', error);
+      message.channel.send('deu ruim');
+    });
 
-  message.channel.send(`She sounds exactly like \`${song.title}\`, it's scary  :sweat: :sweat_smile: :cold_sweat: - pedido do ${message.member.displayName}`);
+    player.on(AudioPlayerStatus.Idle, () => {
+      const serverQueue = queue.get(guildId);
+      if (!serverQueue) return;
 
-  player.on('error', (error) => {
-    console.error('Erro ao tocar áudio:', error);
-    message.channel.send('deu ruim');
-  });
+      if (serverQueue.isSongBeingSkipped) {
+        serverQueue.isSongBeingSkipped = false;
+        return;
+      }
 
-  player.on(AudioPlayerStatus.Idle, () => {
-    const serverQueue = queue.get(guildId);
-    if (!serverQueue) return;
-
-    if (serverQueue.isSongBeingSkipped) {
-      serverQueue.isSongBeingSkipped = false;  
-      return; 
-    }
-
-    if (serverQueue.songs.length > 0) {
-      serverQueue.songs.shift();
-      playVideo(guildId, message);
-    } else {
-      queue.delete(guildId);
-      connection.destroy();
-      message.channel.send("acabou os vídeos.");
-    }
-  });
-}
+      if (serverQueue.songs.length > 0) {
+        serverQueue.songs.shift();
+        playVideo(guildId, message);
+      } else {
+        queue.delete(guildId);
+        connection.destroy();
+        message.channel.send("acabou os vídeos.");
+      }
+    });
+  }
 }
 
 // Remaining functions like skipTrack, pauseTrack, etc.
