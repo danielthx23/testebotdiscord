@@ -7,7 +7,7 @@ const {
   NoSubscriberBehavior, 
   AudioPlayerStatus 
 } = require('@discordjs/voice');
-const ytdl = require('@distube/ytdl-core');
+const ytdl = require('youtube-dl-exec');
 const ytSearch = require('yt-search');
 require('dotenv').config();
 
@@ -19,14 +19,6 @@ try {
   console.error("Failed to parse YOUTUBE_COOKIES. Make sure it's valid JSON.");
   process.exit(1);
 }
-
- const agentOptions = {
-    pipelining: 5,
-    maxRedirections: 0,
-  };
-
-// Create the agent using the new cookie format
-const agent = ytdl.createAgent(cookies, agentOptions);
 
 const client = new Client({
   intents: [
@@ -121,8 +113,8 @@ function leaveVoice(message) {
 async function playFromURL(url, message) {
   try {
     // Pass the agent with cookies when fetching video info
-    const info = await ytdl.getInfo(url, { agent });
-    if (!info || info.videoDetails.isLive) {
+    const info = await ytdl(url, { dumpSingleJson: true, noWarnings: true, forceJson: true, cookies });
+    if (!info || info.is_live) {
       return message.reply("url todo cagado, manda um que funciona");
     }
     joinVoiceChannel({
@@ -130,7 +122,7 @@ async function playFromURL(url, message) {
       guildId: message.guild.id,
       adapterCreator: message.guild.voiceAdapterCreator,
     });
-    addToQueue(message.guild.id, { title: info.videoDetails.title, url }, message);
+    addToQueue(message.guild.id, { title: info.title, url }, message);
   } catch (error) {
     console.error('Erro ao buscar áudio:', error);
     return message.reply("não deu pra processar esse video não man :broken_heart:");
@@ -224,11 +216,6 @@ async function playVideo(guildId, message) {
   if (connection) {
     const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
 
-    ytdl.getInfo(song.url, { agent }).then(info => {
-  console.log(info.formats); // Check available formats
-  // You can use info.formats to select a specific format if needed
-});
-
     const stream = ytdl(song.url, {
       filter: 'audioonly',
       quality: 'highestaudio',
@@ -238,7 +225,7 @@ async function playVideo(guildId, message) {
           Cookie: process.env.YOUTUBE_COOKIES
         }
       },
-      agent // also pass the agent here if needed
+      agent: {} // No need to pass the agent here anymore
     });
     const resource = createAudioResource(stream);
     player.play(resource);
