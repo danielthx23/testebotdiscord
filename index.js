@@ -11,23 +11,6 @@ const ytdl = require('@distube/ytdl-core');
 const ytSearch = require('yt-search');
 require('dotenv').config();
 
-// Parse cookies from the environment variable (expected to be a JSON array)
-let cookies;
-try {
-  cookies = JSON.parse(process.env.YOUTUBE_COOKIES);
-} catch (err) {
-  console.error("Failed to parse YOUTUBE_COOKIES. Make sure it's valid JSON.");
-  process.exit(1);
-}
-
- const agentOptions = {
-    pipelining: 5,
-    maxRedirections: 0,
-  };
-
-// Create the agent using the new cookie format
-const agent = ytdl.createAgent(cookies, agentOptions);
-
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -43,6 +26,7 @@ let queue = new Map();
 
 client.once("ready", async () => {
   const channelId = "373861944718917644"; 
+
   try {
     const channel = await client.channels.fetch(channelId);
     if (channel) {
@@ -57,8 +41,9 @@ client.once("ready", async () => {
 
 client.on('messageCreate', async (message) => {
   if (!message.guild || message.author.bot) return;
+
   if (message.mentions.has(client.user)) {
-    return message.channel.send("Meu prefixo é ;, se precisar de ajuda digite ;help");
+    return message.channel.send("Meu prefixo é `;`, se precisar de ajuda digite `;help`");
   }
 
   const userMessage = message.content;
@@ -69,10 +54,12 @@ client.on('messageCreate', async (message) => {
     if (!message.member.voice.channel) {
       return message.reply("Mf isn't even in a channel :skull:");
     }
+
     const args = userMessage.split(' ').slice(1);
     if (args.length === 0) {
       return message.reply("url todo cagado, manda um que funciona");
     }
+
     const query = args.join(' ').split(',');
     if (ytdl.validateURL(query)) {
       return playFromURL(query, message);
@@ -101,11 +88,13 @@ async function joinVoice(message) {
   if (!message.member.voice.channel) {
     return message.reply("entra num canal de voz");
   }
+
   const connection = joinVoiceChannel({
     channelId: message.member.voice.channel.id,
     guildId: message.guild.id,
     adapterCreator: message.guild.voiceAdapterCreator,
   });
+
   message.reply("sup");
 }
 
@@ -114,21 +103,21 @@ function leaveVoice(message) {
   if (!connection) {
     return message.reply("nem to num canal de voz");
   }
+
   connection.destroy();
   message.reply("flw");
 }
 
 async function playFromURL(url, message) {
   try {
-    // Pass the agent with cookies when fetching video info
-    const info = await ytdl.getInfo(url, { agent });
+    const info = await ytdl.getInfo(url);
     if (!info || info.videoDetails.isLive) {
       return message.reply("url todo cagado, manda um que funciona");
     }
     joinVoiceChannel({
       channelId: message.member.voice.channel.id,
-      guildId: message.guild.id,
-      adapterCreator: message.guild.voiceAdapterCreator,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator,
     });
     addToQueue(message.guild.id, { title: info.videoDetails.title, url }, message);
   } catch (error) {
@@ -140,40 +129,42 @@ async function playFromURL(url, message) {
 async function searchAndCreateSelectMenu(query, message) {
   try {
     if (query.length === 1) {
-      const results = await ytSearch(query[0]);
-      if (results.videos.length === 0) return message.reply('achei isso no youtube não');
 
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId('video_select')
-        .setPlaceholder('escolhe um vídeo aí')
-        .addOptions(
-          results.videos.slice(0, 5).map(video => (
-            new StringSelectMenuOptionBuilder()
-              .setLabel(video.title)
-              .setDescription(video.author.name)
-              .setValue(video.url)
-          ))
-        );
+    const results = await ytSearch(query[0]);
+    if (results.videos.length === 0) return message.reply('achei isso no youtube não');
+
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId('video_select')
+      .setPlaceholder('escolhe um vídeo aí')
+      .addOptions(
+        results.videos.slice(0, 5).map(video => (
+          new StringSelectMenuOptionBuilder()
+            .setLabel(video.title)
+            .setDescription(video.author.name)
+            .setValue(video.url)
+        ))
+      );
+
       const row = new ActionRowBuilder().addComponents(selectMenu);
-      const reply = await message.reply({ content: 'escolhe um ae:', components: [row] });
+    const reply = await message.reply({ content: 'escolhe um ae:', components: [row] });
 
-      const filter = (interaction) => interaction.user.id === message.author.id;
-      const collector = reply.createMessageComponentCollector({ filter, time: 60000 });
+    const filter = (interaction) => interaction.user.id === message.author.id;
+    const collector = reply.createMessageComponentCollector({ filter, time: 60000 });
 
-      collector.on('collect', async (interaction) => {
-        const selectedVideo = results.videos.find(video => video.url === interaction.values[0]);
-        await interaction.update({ content: tu selecionou: \${selectedVideo.title}\`, components: [] });
-        joinVoiceChannel({
-          channelId: message.member.voice.channel.id,
-          guildId: message.guild.id,
-          adapterCreator: message.guild.voiceAdapterCreator,
-        });
-        addToQueue(message.guild.id, { title: selectedVideo.title, url: selectedVideo.url }, message);
+    collector.on('collect', async (interaction) => {
+      const selectedVideo = results.videos.find(video => video.url === interaction.values[0]);
+      await interaction.update({ content: `tu selecionou: \`${selectedVideo.title}\``, components: [] });
+      joinVoiceChannel({
+        channelId: message.member.voice.channel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator,
       });
+      addToQueue(message.guild.id, { title: selectedVideo.title, url: selectedVideo.url }, message);
+    });
 
-      collector.on('end', (_, reason) => {
-        if (reason === 'time') reply.edit({ content: 'demorou demais', components: [] });
-      });
+    collector.on('end', (_, reason) => {
+      if (reason === 'time') reply.edit({ content: 'demorou demais', components: [] });
+    });
     } else {
       joinVoiceChannel({
         channelId: message.member.voice.channel.id,
@@ -183,7 +174,7 @@ async function searchAndCreateSelectMenu(query, message) {
       query.forEach(async title => {
         const results = await ytSearch(title);
         addToQueue(message.guild.id, { title: results.videos[0].title, url: results.videos[0].url }, message);
-      });
+      })
     }
   } catch (error) {
     console.error('Erro ao buscar vídeo:', error);
@@ -198,7 +189,7 @@ function addToQueue(guildId, song, message) {
     playVideo(guildId, message);
   } else {
     serverQueue.songs.push(song);
-    message.channel.send(adicionado à fila: \${song.title}\`);
+    message.channel.send(`adicionado à fila: \`${song.title}\``);
   }
 }
 
@@ -207,8 +198,10 @@ function skipTrack(message) {
   if (!serverQueue || serverQueue.songs.length < 1) {
     return message.reply("não tem outra música para pular.");
   }
+
   serverQueue.isSongBeingSkipped = true;
-  message.reply(pulando: \${serverQueue.songs[0].title}\`);
+  
+  message.reply(`pulando: \`${serverQueue.songs[0].title}\``);
   serverQueue.songs.shift();
   playVideo(message.guild.id, message);
 }
@@ -219,53 +212,72 @@ async function playVideo(guildId, message) {
     queue.delete(guildId);
     return message.channel.send("acabou os vídeos.");
   }
+
   const song = serverQueue.songs[0];
+
   let connection = getVoiceConnection(guildId);
+
   if (connection) {
-    const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
-    const stream = ytdl(song.url, {
-      filter: 'audioonly',
-      quality: 'highestaudio',
-      requestOptions: {
-        headers: {
-          Cookie: process.env.YOUTUBE_COOKIES
-        }
-      },
-      agent // also pass the agent here if needed
-    });
-    const resource = createAudioResource(stream);
-    player.play(resource);
-    connection.subscribe(player);
 
-    message.channel.send(She sounds exactly like \${song.title}\, it's scary  :sweat: :sweat_smile: :cold_sweat: - pedido do ${message.member.displayName});
+  const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
 
-    player.on('error', (error) => {
-      console.error('Erro ao tocar áudio:', error);
-      message.channel.send('deu ruim');
-    });
+  const youtubeCookies = process.env.YOUTUBE_COOKIES;
 
-    player.on(AudioPlayerStatus.Idle, () => {
-      const serverQueue = queue.get(guildId);
-      if (!serverQueue) return;
-      if (serverQueue.isSongBeingSkipped) {
-        serverQueue.isSongBeingSkipped = false;
-        return;
-      }
-      if (serverQueue.songs.length > 0) {
-        serverQueue.songs.shift();
-        playVideo(guildId, message);
-      } else {
-        queue.delete(guildId);
-        connection.destroy();
-        message.channel.send("acabou os vídeos.");
-      }
-    });
-  }
+  const cookies = youtubeCookies.split(',').map(cookie => {
+    const [name, value] = cookie.trim().split('=');
+    return { name, value };
+  });
+
+  const agentOptions = {
+    pipelining: 5,
+    maxRedirections: 0,
+  };
+
+  const agent = ytdl.createAgent(cookies, agentOptions);
+
+  const stream = ytdl(song.url, {
+    filter: 'audioonly',
+    quality: 'highestaudio',
+    agent: agent
+  });
+
+  const resource = createAudioResource(stream);
+
+  player.play(resource);
+  connection.subscribe(player);
+
+  message.channel.send(`She sounds exactly like \`${song.title}\`, it's scary  :sweat: :sweat_smile: :cold_sweat: - pedido do ${message.member.displayName}`);
+
+  player.on('error', (error) => {
+    console.error('Erro ao tocar áudio:', error);
+    message.channel.send('deu ruim');
+  });
+
+  player.on(AudioPlayerStatus.Idle, () => {
+    const serverQueue = queue.get(guildId);
+    if (!serverQueue) return;
+
+    if (serverQueue.isSongBeingSkipped) {
+      serverQueue.isSongBeingSkipped = false;  
+      return; 
+    }
+
+    if (serverQueue.songs.length > 0) {
+      serverQueue.songs.shift();
+      playVideo(guildId, message);
+    } else {
+      queue.delete(guildId);
+      connection.destroy();
+      message.channel.send("acabou os vídeos.");
+    }
+  });
+}
 }
 
 function pauseTrack(message) {
   const connection = getVoiceConnection(message.guild.id);
   if (!connection) return message.reply("nn to tocando nada.");
+  
   connection.state.subscription.player.pause();
   message.reply("video pausado");
 }
@@ -273,6 +285,7 @@ function pauseTrack(message) {
 function resumeTrack(message) {
   const connection = getVoiceConnection(message.guild.id);
   if (!connection) return message.reply("nn to tocando nada.");
+
   connection.state.subscription.player.unpause();
   message.reply("video retomado");
 }
@@ -280,30 +293,33 @@ function resumeTrack(message) {
 function nowPlaying(message) {
   const serverQueue = queue.get(message.guild.id);
   if (!serverQueue || !serverQueue.songs.length) return message.reply("não tem música tocando.");
-  message.reply(to tocando \${serverQueue.songs[0].title}\`);
+
+  message.reply(`to tocando \`${serverQueue.songs[0].title}\``);
 }
 
 function listarQueue(message) {
   const serverQueue = queue.get(message.guild.id);
   if (!serverQueue || !serverQueue.songs.length) return message.reply("não tem música tocando.");
+
   const listaDeVideos = serverQueue.songs
-    .map((song, index) => ${index + 1}. ${song.title})
+    .map((song, index) => `${index + 1}. ${song.title}`)
     .join("\n");
-  message.reply(**fila ai:**\n${listaDeVideos});
+   
+    message.reply(`**fila ai:**\n${listaDeVideos}`);
 }
 
 function commandList(message) {
   message.reply(
-    **lista de comandos:**\n +
-      ;play - tocar um video, da pra adicionar varios se separar por virgula (coloca o nome do autor pra n errar)\n +
-      ;join - entrar no canal de voz\n +
-      ;leave - sair do canal de voz\n +
-      ;skip - pular o video atual\n +
-      ;pause - pausar o video\n +
-      ;resume - retomar o video\n +
-      ;np - mostrar o video atual\n +
-      ;queue - listar a fila de videos\n +
-      ;help - mostrar esta lista de comandos
+    `**lista de comandos:**\n` +
+      `;play - tocar um video, da pra adicionar varios se separar por virgula (coloca o nome do autor pra n errar)\n` +
+      `;join - entrar no canal de voz\n` +
+      `;leave - sair do canal de voz\n` +
+      `;skip - pular o video atual\n` +
+      `;pause - pausar o video\n` +
+      `;resume - retomar o video\n` +
+      `;np - mostrar o video atual\n` +
+      `;queue - listar a fila de videos\n` +
+      `;help - mostrar esta lista de comandos`
   );
 }
 
