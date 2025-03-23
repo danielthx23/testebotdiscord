@@ -20,11 +20,10 @@ try {
   process.exit(1);
 }
 
-const agentOptions = {
-  pipelining: 5,
-  maxRedirections: 0,
-  localAddress: "127.0.0.1",
-};
+ const agentOptions = {
+    pipelining: 5,
+    maxRedirections: 0,
+  };
 
 // Create the agent using the new cookie format
 const agent = ytdl.createAgent(cookies, agentOptions);
