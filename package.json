@@ -5,16 +5,12 @@
   "scripts": {
     "test": "echo \"Error: No test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
     "@discordjs/opus": "^0.10.0",
     "@discordjs/voice": "^0.18.0",
+    "ytdl-core": "^4.9.0",
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.7",
-    "yt-search": "^2.12.1",
-    "youtube-dl-exec": "^1.0.1"
+    "yt-search": "^2.12.1"
   }
 }
