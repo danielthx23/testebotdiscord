@@ -11,6 +11,24 @@ const ytdl = require('@distube/ytdl-core');
 const ytSearch = require('yt-search');
 require('dotenv').config();
 
+// Parse cookies from the environment variable (expected to be a JSON array)
+let cookies;
+try {
+  cookies = JSON.parse(process.env.YOUTUBE_COOKIES);
+} catch (err) {
+  console.error("Failed to parse YOUTUBE_COOKIES. Make sure it's valid JSON.");
+  process.exit(1);
+}
+
+const agentOptions = {
+  pipelining: 5,
+  maxRedirections: 0,
+  localAddress: "127.0.0.1",
+};
+
+// Create the agent using the new cookie format
+const agent = ytdl.createAgent(cookies, agentOptions);
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -26,7 +44,6 @@ let queue = new Map();
 
 client.once("ready", async () => {
   const channelId = "373861944718917644"; 
-
   try {
     const channel = await client.channels.fetch(channelId);
     if (channel) {
@@ -41,7 +58,6 @@ client.once("ready", async () => {
 
 client.on('messageCreate', async (message) => {
   if (!message.guild || message.author.bot) return;
-
   if (message.mentions.has(client.user)) {
     return message.channel.send("Meu prefixo é `;`, se precisar de ajuda digite `;help`");
   }
@@ -54,12 +70,10 @@ client.on('messageCreate', async (message) => {
     if (!message.member.voice.channel) {
       return message.reply("Mf isn't even in a channel :skull:");
     }
-
     const args = userMessage.split(' ').slice(1);
     if (args.length === 0) {
       return message.reply("url todo cagado, manda um que funciona");
     }
-
     const query = args.join(' ').split(',');
     if (ytdl.validateURL(query)) {
       return playFromURL(query, message);
@@ -88,13 +102,11 @@ async function joinVoice(message) {
   if (!message.member.voice.channel) {
     return message.reply("entra num canal de voz");
   }
-
   const connection = joinVoiceChannel({
     channelId: message.member.voice.channel.id,
     guildId: message.guild.id,
     adapterCreator: message.guild.voiceAdapterCreator,
   });
-
   message.reply("sup");
 }
 
@@ -103,21 +115,14 @@ function leaveVoice(message) {
   if (!connection) {
     return message.reply("nem to num canal de voz");
   }
-
   connection.destroy();
   message.reply("flw");
 }
 
 async function playFromURL(url, message) {
   try {
-    // Pass the cookies in the requestOptions header
-    const info = await ytdl.getInfo(url, {
-      requestOptions: {
-        headers: {
-          Cookie: process.env.YOUTUBE_COOKIES
-        }
-      }
-    });
+    // Pass the agent with cookies when fetching video info
+    const info = await ytdl.getInfo(url, { agent });
     if (!info || info.videoDetails.isLive) {
       return message.reply("url todo cagado, manda um que funciona");
     }
@@ -136,7 +141,6 @@ async function playFromURL(url, message) {
 async function searchAndCreateSelectMenu(query, message) {
   try {
     if (query.length === 1) {
-
       const results = await ytSearch(query[0]);
       if (results.videos.length === 0) return message.reply('achei isso no youtube não');
 
@@ -151,7 +155,6 @@ async function searchAndCreateSelectMenu(query, message) {
               .setValue(video.url)
           ))
         );
-
       const row = new ActionRowBuilder().addComponents(selectMenu);
       const reply = await message.reply({ content: 'escolhe um ae:', components: [row] });
 
@@ -205,7 +208,6 @@ function skipTrack(message) {
   if (!serverQueue || serverQueue.songs.length < 1) {
     return message.reply("não tem outra música para pular.");
   }
-
   serverQueue.isSongBeingSkipped = true;
   message.reply(`pulando: \`${serverQueue.songs[0].title}\``);
   serverQueue.songs.shift();
@@ -218,14 +220,10 @@ async function playVideo(guildId, message) {
     queue.delete(guildId);
     return message.channel.send("acabou os vídeos.");
   }
-
   const song = serverQueue.songs[0];
   let connection = getVoiceConnection(guildId);
-
   if (connection) {
     const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
-
-    // Pass cookies via headers inside requestOptions
     const stream = ytdl(song.url, {
       filter: 'audioonly',
       quality: 'highestaudio',
@@ -233,9 +231,9 @@ async function playVideo(guildId, message) {
         headers: {
           Cookie: process.env.YOUTUBE_COOKIES
         }
-      }
+      },
+      agent // also pass the agent here if needed
     });
-
     const resource = createAudioResource(stream);
     player.play(resource);
     connection.subscribe(player);
@@ -250,12 +248,10 @@ async function playVideo(guildId, message) {
     player.on(AudioPlayerStatus.Idle, () => {
       const serverQueue = queue.get(guildId);
       if (!serverQueue) return;
-
       if (serverQueue.isSongBeingSkipped) {
         serverQueue.isSongBeingSkipped = false;
         return;
       }
-
       if (serverQueue.songs.length > 0) {
         serverQueue.songs.shift();
         playVideo(guildId, message);
@@ -271,7 +267,6 @@ async function playVideo(guildId, message) {
 function pauseTrack(message) {
   const connection = getVoiceConnection(message.guild.id);
   if (!connection) return message.reply("nn to tocando nada.");
-
   connection.state.subscription.player.pause();
   message.reply("video pausado");
 }
@@ -279,7 +274,6 @@ function pauseTrack(message) {
 function resumeTrack(message) {
   const connection = getVoiceConnection(message.guild.id);
   if (!connection) return message.reply("nn to tocando nada.");
-
   connection.state.subscription.player.unpause();
   message.reply("video retomado");
 }
@@ -287,18 +281,15 @@ function resumeTrack(message) {
 function nowPlaying(message) {
   const serverQueue = queue.get(message.guild.id);
   if (!serverQueue || !serverQueue.songs.length) return message.reply("não tem música tocando.");
-
   message.reply(`to tocando \`${serverQueue.songs[0].title}\``);
 }
 
 function listarQueue(message) {
   const serverQueue = queue.get(message.guild.id);
   if (!serverQueue || !serverQueue.songs.length) return message.reply("não tem música tocando.");
-
   const listaDeVideos = serverQueue.songs
     .map((song, index) => `${index + 1}. ${song.title}`)
     .join("\n");
-
   message.reply(`**fila ai:**\n${listaDeVideos}`);
 }
 
