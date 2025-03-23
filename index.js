@@ -241,13 +241,30 @@ async function playVideo(guildId, message) {
   const stream = ytdl(song.url, {
     filter: 'audioonly',
     quality: 'highestaudio',
-    agent: agent
+    agent: agent,
+     ffmpegOptions: {
+        // Configurações do ffmpeg, como codec de áudio e qualidade
+        audioCodec: 'opus', // Codec de áudio utilizado pelo Discord
+        quality: 'high', // Definir a qualidade do áudio
+      }
   });
+
+     if (!stream) {
+      console.error("Falha ao obter o stream do YouTube.");
+      return message.channel.send("Erro ao carregar áudio.");
+    } else {
+      console.log("Stream do YouTube obtido com sucesso.");
+    }
 
   const resource = createAudioResource(stream);
 
   player.play(resource);
   connection.subscribe(player);
+
+   player.on("error", (error) => {
+      console.error("Erro ao tocar áudio:", error);
+      message.channel.send("Erro ao reproduzir áudio.");
+    });
 
   message.channel.send(`She sounds exactly like \`${song.title}\`, it's scary  :sweat: :sweat_smile: :cold_sweat: - pedido do ${message.member.displayName}`);
 
