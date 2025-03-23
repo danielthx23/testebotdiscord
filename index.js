@@ -11,24 +11,24 @@ const ytdl = require('@distube/ytdl-core');
 const ytSearch = require('yt-search');
 require('dotenv').config();
 
-// Parse cookies from the environment variable (expected to be a JSON array)
 const cookiesString = process.env.YOUTUBE_COOKIES;
+let cookies;
+
 try {
-  const cookies = cookiesString.split("; ").map(cookie => {
-  const [name, value] = cookie.split("=");
-  return { name, value };
-});
+  cookies = cookiesString.split("; ").map(cookie => {
+    const [name, value] = cookie.split("=");
+    return { name, value };
+  });
 } catch (err) {
-  console.error("Failed to parse YOUTUBE_COOKIES. Make sure it's valid JSON.");
+  console.error("Failed to parse YOUTUBE_COOKIES.");
   process.exit(1);
 }
 
- const agentOptions = {
-    pipelining: 5,
-    maxRedirections: 0,
-  };
+const agentOptions = {
+  pipelining: 5,
+  maxRedirections: 0,
+};
 
-// Create the agent using the new cookie format
 const agent = ytdl.createAgent(cookies, agentOptions);
 
 const client = new Client({
