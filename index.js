@@ -45,7 +45,7 @@ client.once("ready", async () => {
   try {
     const channel = await client.channels.fetch(channelId);
     if (channel) {
-      channel.send("to on");
+      channel.send("please dont kill me");
     } else {
       console.log("achei esse canal nn");
     }
