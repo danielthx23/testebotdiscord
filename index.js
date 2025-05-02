@@ -58,7 +58,7 @@ client.on('messageCreate', async (message) => {
   if (!message.guild || message.author.bot) return;
 
   if (message.mentions.has(client.user)) {
-    return message.channel.send("Meu prefixo é `;`, se precisar de ajuda digite `;help`");
+    return message.channel.send("i beg you`");
   }
 
   const userMessage = message.content;
