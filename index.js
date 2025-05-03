@@ -241,11 +241,6 @@ async function playVideo(guildId, message) {
     filter: 'audioonly',
     quality: 'highestaudio',
     agent: agent,
-     ffmpegOptions: {
-        // Configurações do ffmpeg, como codec de áudio e qualidade
-        audioCodec: 'opus', // Codec de áudio utilizado pelo Discord
-        quality: 'high', // Definir a qualidade do áudio
-      }
   });
 
      if (!stream) {
