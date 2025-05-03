@@ -241,6 +241,10 @@ async function playVideo(guildId, message) {
     filter: 'audioonly',
     quality: 'highestaudio',
     agent: agent,
+    ffmpegOptions: {
+        audioCodec: 'opus', 
+        quality: 'high',
+    },
   });
 
      if (!stream) {
