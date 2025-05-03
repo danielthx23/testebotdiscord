@@ -239,10 +239,6 @@ async function playVideo(guildId, message) {
 
   console.log(song.url);
   const stream = ytdl(song.url, {
-  filter: (format) => {
-    console.log(format.audioCodec);
-    return format.audioCodec !== null;
-  },
   quality: 'highestaudio',
   agent: agent,
   requestOptions: {
