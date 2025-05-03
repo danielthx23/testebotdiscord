@@ -237,16 +237,18 @@ async function playVideo(guildId, message) {
 
   const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
 
+  console.log(song.url);
   const stream = ytdl(song.url, {
-    filter: 'audioonly',
-    quality: 'highestaudio',
-    agent: agent,
-    ffmpegOptions: {
-        audioCodec: 'opus', 
-        quality: 'high',
+  filter: 'audioonly',
+  quality: 'highestaudio',
+  agent: agent,
+  requestOptions: {
+    headers: {
+      'User-Agent': 'Mozilla/5.0',
     },
-  });
-
+  },
+});
+    
      if (!stream) {
       console.error("Falha ao obter o stream do YouTube.");
       return message.channel.send("Erro ao carregar áudio.");
