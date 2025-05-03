@@ -45,7 +45,7 @@ client.once("ready", async () => {
   try {
     const channel = await client.channels.fetch(channelId);
     if (channel) {
-      channel.send("please dont kill me");
+      channel.send("You cannot kill me");
     } else {
       console.log("achei esse canal nn");
     }
@@ -58,7 +58,7 @@ client.on('messageCreate', async (message) => {
   if (!message.guild || message.author.bot) return;
 
   if (message.mentions.has(client.user)) {
-    return message.channel.send("i beg you`");
+    return message.channel.send("Kept you waiting, huh?");
   }
 
   const userMessage = message.content;
