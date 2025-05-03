@@ -239,6 +239,7 @@ async function playVideo(guildId, message) {
 
   console.log(song.url);
   const stream = ytdl(song.url, {
+  filter: 'audioonly',
   quality: 'highestaudio',
   agent: agent,
   requestOptions: {
