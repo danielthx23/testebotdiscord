@@ -19,6 +19,7 @@ try {
     const [name, value] = cookie.split("=");
     return { name, value };
   });
+  console.log("Parsed cookies:", cookies);
 } catch (err) {
   console.error("Failed to parse YOUTUBE_COOKIES.");
   process.exit(1);
