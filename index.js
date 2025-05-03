@@ -15,9 +15,9 @@ const cookiesString = process.env.YOUTUBE_COOKIES;
 let cookies;
 
 try {
-  cookies = cookiesString.split("; ").map(cookie => {
+  cookies = cookiesString.split(";").map(cookie => {
     const [name, value] = cookie.split("=");
-    return { name, value };
+    return { name: name.trim(), value: value.trim() };
   });
   console.log("Parsed cookies:", cookies);
 } catch (err) {
