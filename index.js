@@ -63,17 +63,12 @@ client.on('messageCreate', async (message) => {
   }
 
   const userMessage = message.content;
-  const args = userMessage.split();
+  const args = userMessage.split(' ');
   const command = args.shift().toLowerCase();
 
   if (userMessage.startsWith(';play')) {
     if (!message.member.voice.channel) {
       return message.reply("Mf isn't even in a channel :skull:");
-    }
-
-    const args = userMessage.split(' ').slice(1);
-    if (args.length === 0) {
-      return message.reply("url todo cagado, manda um que funciona");
     }
 
     const query = args.join(' ').split(',');
@@ -93,6 +88,8 @@ client.on('messageCreate', async (message) => {
     ";np": nowPlaying,
     ";queue": listarQueue,
     ";help": commandList,
+    ";volume": setVolume,
+    ";remove": removeFromQueue,
   };
 
   if (commands[command]) {
@@ -105,7 +102,7 @@ async function joinVoice(message) {
     return message.reply("entra num canal de voz");
   }
 
-  const connection = joinVoiceChannel({
+  joinVoiceChannel({
     channelId: message.member.voice.channel.id,
     guildId: message.guild.id,
     adapterCreator: message.guild.voiceAdapterCreator,
@@ -132,8 +129,8 @@ async function playFromURL(url, message) {
     }
     joinVoiceChannel({
       channelId: message.member.voice.channel.id,
-        guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator,
+      guildId: message.guild.id,
+      adapterCreator: message.guild.voiceAdapterCreator,
     });
     addToQueue(message.guild.id, { title: info.videoDetails.title, url }, message);
   } catch (error) {
@@ -145,42 +142,41 @@ async function playFromURL(url, message) {
 async function searchAndCreateSelectMenu(query, message) {
   try {
     if (query.length === 1) {
+      const results = await ytSearch(query[0]);
+      if (results.videos.length === 0) return message.reply('achei isso no youtube não');
 
-    const results = await ytSearch(query[0]);
-    if (results.videos.length === 0) return message.reply('achei isso no youtube não');
-
-    const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId('video_select')
-      .setPlaceholder('escolhe um vídeo aí')
-      .addOptions(
-        results.videos.slice(0, 5).map(video => (
-          new StringSelectMenuOptionBuilder()
-            .setLabel(video.title)
-            .setDescription(video.author.name)
-            .setValue(video.url)
-        ))
-      );
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId('video_select')
+        .setPlaceholder('escolhe um vídeo aí')
+        .addOptions(
+          results.videos.slice(0, 5).map(video => (
+            new StringSelectMenuOptionBuilder()
+              .setLabel(video.title)
+              .setDescription(video.author.name)
+              .setValue(video.url)
+          ))
+        );
 
       const row = new ActionRowBuilder().addComponents(selectMenu);
-    const reply = await message.reply({ content: 'escolhe um ae:', components: [row] });
+      const reply = await message.reply({ content: 'escolhe um ae:', components: [row] });
 
-    const filter = (interaction) => interaction.user.id === message.author.id;
-    const collector = reply.createMessageComponentCollector({ filter, time: 60000 });
+      const filter = (interaction) => interaction.user.id === message.author.id;
+      const collector = reply.createMessageComponentCollector({ filter, time: 60000 });
 
-    collector.on('collect', async (interaction) => {
-      const selectedVideo = results.videos.find(video => video.url === interaction.values[0]);
-      await interaction.update({ content: `tu selecionou: \`${selectedVideo.title}\``, components: [] });
-      joinVoiceChannel({
-        channelId: message.member.voice.channel.id,
-        guildId: message.guild.id,
-        adapterCreator: message.guild.voiceAdapterCreator,
+      collector.on('collect', async (interaction) => {
+        const selectedVideo = results.videos.find(video => video.url === interaction.values[0]);
+        await interaction.update({ content: `tu selecionou: \`${selectedVideo.title}\``, components: [] });
+        joinVoiceChannel({
+          channelId: message.member.voice.channel.id,
+          guildId: message.guild.id,
+          adapterCreator: message.guild.voiceAdapterCreator,
+        });
+        addToQueue(message.guild.id, { title: selectedVideo.title, url: selectedVideo.url }, message);
       });
-      addToQueue(message.guild.id, { title: selectedVideo.title, url: selectedVideo.url }, message);
-    });
 
-    collector.on('end', (_, reason) => {
-      if (reason === 'time') reply.edit({ content: 'demorou demais', components: [] });
-    });
+      collector.on('end', (_, reason) => {
+        if (reason === 'time') reply.edit({ content: 'demorou demais', components: [] });
+      });
     } else {
       joinVoiceChannel({
         channelId: message.member.voice.channel.id,
@@ -190,7 +186,7 @@ async function searchAndCreateSelectMenu(query, message) {
       query.forEach(async title => {
         const results = await ytSearch(title);
         addToQueue(message.guild.id, { title: results.videos[0].title, url: results.videos[0].url }, message);
-      })
+      });
     }
   } catch (error) {
     console.error('Erro ao buscar vídeo:', error);
@@ -201,7 +197,7 @@ async function searchAndCreateSelectMenu(query, message) {
 function addToQueue(guildId, song, message) {
   const serverQueue = queue.get(guildId);
   if (!serverQueue) {
-    queue.set(guildId, { songs: [song], isSongBeingSkipped: false });
+    queue.set(guildId, { songs: [song], isSongBeingSkipped: false, volume: 1 });
     playVideo(guildId, message);
   } else {
     serverQueue.songs.push(song);
@@ -216,7 +212,7 @@ function skipTrack(message) {
   }
 
   serverQueue.isSongBeingSkipped = true;
-  
+
   message.reply(`pulando: \`${serverQueue.songs[0].title}\``);
   serverQueue.songs.shift();
   playVideo(message.guild.id, message);
@@ -230,75 +226,66 @@ async function playVideo(guildId, message) {
   }
 
   const song = serverQueue.songs[0];
-
   let connection = getVoiceConnection(guildId);
 
   if (connection) {
+    const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
 
-  const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop } });
+    const stream = ytdl(song.url, {
+      filter: 'audioonly',
+      quality: 'highestaudio',
+      agent: agent,
+      requestOptions: {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 
+          'Cookie': cookiesString,
+        }
+      },
+    });
 
-  console.log(song.url);
-  const stream = ytdl(song.url, {
-  filter: 'audioonly',
-  quality: 'highestaudio',
-  agent: agent,
-  requestOptions: {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 
-      'Cookie': cookiesString,
-    }
-  },
-});
-    
-     if (!stream) {
+    if (!stream) {
       console.error("Falha ao obter o stream do YouTube.");
       return message.channel.send("Erro ao carregar áudio.");
-    } else {
-      console.log("Stream do YouTube obtido com sucesso.");
     }
 
-  const resource = createAudioResource(stream);
+    const resource = createAudioResource(stream, { inlineVolume: true });
+    resource.volume.setVolume(serverQueue.volume || 1);
 
-  player.play(resource);
-  connection.subscribe(player);
+    player.play(resource);
+    connection.subscribe(player);
 
-   player.on("error", (error) => {
+    message.channel.send(`She sounds exactly like \`${song.title}\`, it's scary  :sweat: :sweat_smile: :cold_sweat: - pedido do ${message.member.displayName}`);
+
+    player.on("error", (error) => {
       console.error("Erro ao tocar áudio:", error);
       message.channel.send("Erro ao reproduzir áudio.");
     });
 
-  message.channel.send(`She sounds exactly like \`${song.title}\`, it's scary  :sweat: :sweat_smile: :cold_sweat: - pedido do ${message.member.displayName}`);
+    player.on(AudioPlayerStatus.Idle, () => {
+      const serverQueue = queue.get(guildId);
+      if (!serverQueue) return;
 
-  player.on('error', (error) => {
-    console.error('Erro ao tocar áudio:', error);
-    message.channel.send('deu ruim');
-  });
+      if (serverQueue.isSongBeingSkipped) {
+        serverQueue.isSongBeingSkipped = false;  
+        return; 
+      }
 
-  player.on(AudioPlayerStatus.Idle, () => {
-    const serverQueue = queue.get(guildId);
-    if (!serverQueue) return;
-
-    if (serverQueue.isSongBeingSkipped) {
-      serverQueue.isSongBeingSkipped = false;  
-      return; 
-    }
-
-    if (serverQueue.songs.length > 0) {
-      serverQueue.songs.shift();
-      playVideo(guildId, message);
-    } else {
-      queue.delete(guildId);
-      connection.destroy();
-      message.channel.send("acabou os vídeos.");
-    }
-  });
-}
+      if (serverQueue.songs.length > 0) {
+        serverQueue.songs.shift();
+        playVideo(guildId, message);
+      } else {
+        queue.delete(guildId);
+        connection.destroy();
+        message.channel.send("acabou os vídeos.");
+      }
+    });
+  }
 }
 
 function pauseTrack(message) {
   const connection = getVoiceConnection(message.guild.id);
   if (!connection) return message.reply("nn to tocando nada.");
-  
+
   connection.state.subscription.player.pause();
   message.reply("video pausado");
 }
@@ -325,8 +312,8 @@ function listarQueue(message) {
   const listaDeVideos = serverQueue.songs
     .map((song, index) => `${index + 1}. ${song.title}`)
     .join("\n");
-   
-    message.reply(`**fila ai:**\n${listaDeVideos}`);
+
+  message.reply(`**fila ai:**\n${listaDeVideos}`);
 }
 
 function commandList(message) {
@@ -340,8 +327,48 @@ function commandList(message) {
       `;resume - retomar o video\n` +
       `;np - mostrar o video atual\n` +
       `;queue - listar a fila de videos\n` +
+      `;volume [0-2] - ajustar volume (1 = 100%)\n` +
+      `;remove [n] - remover item n da fila\n` +
       `;help - mostrar esta lista de comandos`
   );
+}
+
+function setVolume(message, args) {
+  const serverQueue = queue.get(message.guild.id);
+  if (!serverQueue) return message.reply("não tem nada tocando.");
+
+  const newVolume = parseFloat(args[0]);
+  if (isNaN(newVolume) || newVolume < 0 || newVolume > 2) {
+    return message.reply("volume inválido. use um número entre 0 e 2 (1 é o padrão)");
+  }
+
+  serverQueue.volume = newVolume;
+
+  try {
+    const connection = getVoiceConnection(message.guild.id);
+    if (connection?.state?.subscription?.player?._state?.resource?.volume) {
+      connection.state.subscription.player._state.resource.volume.setVolume(newVolume);
+    }
+  } catch (err) {
+    console.warn("Não foi possível ajustar o volume do recurso atual.");
+  }
+
+  message.reply(`volume ajustado para \`${newVolume * 100}%\``);
+}
+
+function removeFromQueue(message, args) {
+  const serverQueue = queue.get(message.guild.id);
+  if (!serverQueue || serverQueue.songs.length <= 1) {
+    return message.reply("a fila está vazia ou só tem a música atual.");
+  }
+
+  const index = parseInt(args[0]);
+  if (isNaN(index) || index < 2 || index > serverQueue.songs.length) {
+    return message.reply("índice inválido. Use um número entre 2 e o tamanho da fila.");
+  }
+
+  const removed = serverQueue.songs.splice(index - 1, 1)[0];
+  message.reply(`removido da fila: \`${removed.title}\``);
 }
 
 client.login(process.env.DISCORD_TOKEN);
